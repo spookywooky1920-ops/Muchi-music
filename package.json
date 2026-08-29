@@ -1,0 +1,10 @@
+{
+  "name": "muchi",
+  "version": "1.2.1",
+  "private": true,
+  "description": "Muchi — YouTube Music + Spotify-style player. Official YouTube playback, Audius independent artists, live radio.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

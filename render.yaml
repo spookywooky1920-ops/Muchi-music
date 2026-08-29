@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: muchi-music
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: "true"
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MUCHI_GITHUB
+        sync: false
