@@ -1,0 +1,80 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+android {
+    namespace 'app.muchi.music'
+    compileSdk 36
+    defaultConfig {
+        applicationId "app.muchi.music"
+        minSdk 26
+        targetSdk 36
+        versionCode 15
+        versionName "1.3.1"
+        buildConfigField "String", "API_BASE", '"https://muchi-music.onrender.com"'
+        buildConfigField "String", "GOOGLE_WEB_CLIENT_ID", "\"${System.getenv('GOOGLE_WEB_CLIENT_ID') ?: ''}\""
+    }
+    signingConfigs {
+        release {
+            storeFile file("muchi.keystore")
+            storePassword "muchi-release"
+            keyAlias "muchi"
+            keyPassword "muchi-release"
+        }
+    }
+    buildTypes {
+        debug {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+    buildFeatures {
+        compose true
+        buildConfig true
+    }
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+}
+dependencies {
+    implementation platform("org.jetbrains.kotlin:kotlin-bom:2.0.21")
+    implementation platform("androidx.compose:compose-bom:2024.12.01")
+    implementation "androidx.compose.ui:ui"
+    implementation "androidx.compose.ui:ui-tooling-preview"
+    implementation "androidx.compose.material3:material3"
+    implementation "androidx.compose.material:material-icons-extended"
+    implementation "androidx.activity:activity-compose:1.9.3"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.7"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7"
+    implementation "androidx.lifecycle:lifecycle-service:2.8.7"
+    implementation "androidx.core:core-ktx:1.15.0"
+    implementation "androidx.media3:media3-exoplayer:1.5.1"
+    implementation "androidx.media3:media3-session:1.5.1"
+    implementation "androidx.media3:media3-ui:1.5.1"
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    implementation "com.google.code.gson:gson:2.11.0"
+    implementation "io.coil-kt:coil-compose:2.7.0"
+    implementation "androidx.credentials:credentials:1.3.0"
+    implementation "androidx.credentials:credentials-play-services-auth:1.3.0"
+    implementation "com.google.android.libraries.identity.googleid:googleid:1.1.1"
+    implementation "com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.1"
+}
