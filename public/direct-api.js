@@ -18,6 +18,35 @@
     "https://at1.api.radio-browser.info",
     "https://nl1.api.radio-browser.info",
   ];
+  const LOCAL_QUERIES = {
+    IN: "bollywood hits official",
+    US: "top 40 usa official audio",
+    GB: "uk top 40 official audio",
+    CA: "canada top hits official",
+    AU: "australia top hits official",
+    DE: "deutsche charts official",
+    FR: "france top hits official",
+    JP: "jpop hits official",
+    KR: "kpop hits official audio",
+    BR: "brazil top hits official",
+    MX: "mexico hits official",
+    NG: "afrobeats hits official",
+    ZA: "south africa amapiano hits",
+    AE: "arabic hits official",
+    SA: "khaleeji hits official",
+    PK: "pakistan hits official",
+    BD: "bangla hits official",
+    ID: "indonesia hits official",
+    MY: "malaysia hits official",
+    SG: "singapore hits official",
+    PH: "opm hits official",
+    TH: "thai hits official",
+    VN: "vpop hits official",
+    EG: "egypt hits official",
+    IT: "italy hits official",
+    ES: "spain hits official",
+    TR: "turkce pop hits official",
+  };
   // These endpoints return metadata only. Playback continues through the
   // official YouTube IFrame player after a video id is found.
   const VIDEO_APIS = [
@@ -302,6 +331,17 @@
     return items.map(mapVideo).filter(Boolean).slice(0, limit);
   }
 
+  async function localSearch(country = "IN", limit = 18) {
+    const code = String(country || "IN").toUpperCase();
+    const query = LOCAL_QUERIES[code] || "top hits official audio";
+    const [apple, youtube] = await Promise.allSettled([
+      appleSearch(query, limit),
+      youtubeSearch(`${query} official audio`, limit),
+    ]);
+    const rows = (result) => result.status === "fulfilled" ? result.value : [];
+    return uniqueTracks([...rows(youtube), ...rows(apple)], limit);
+  }
+
   async function search(query, options = {}) {
     const q = String(query || "").trim();
     if (!q) return { query: q, youtube: [], audius: [], radio: [], apple: [], artists: [], playlists: [] };
@@ -337,16 +377,20 @@
     };
   }
 
-  async function home() {
+  async function home(country = "IN") {
+    const code = String(country || "IN").toUpperCase();
+    const localQuery = LOCAL_QUERIES[code] || "top hits official audio";
     const shelfQueries = ["pop hits", "new music", "hip hop hits", "r&b hits", "rock hits", "dance music", "indie music"];
-    const [general, bollywood, audius, radio, youtube] = await Promise.allSettled([
+    const [general, bollywood, audius, radio, youtube, local] = await Promise.allSettled([
       appleSearch("pop hits", 30),
       appleSearch("bollywood hits", 18),
       audiusTrending(18),
       radioSearch("hits", 12),
       youtubeSearch("top hits official audio", 18),
+      localSearch(code, 18),
     ]);
     const value = (result) => result.status === "fulfilled" ? result.value : [];
+    const localTracks = value(local);
     const base = uniqueTracks([...value(youtube), ...value(general), ...value(bollywood), ...value(audius)], 80);
     const shelves = shelfQueries.map((item, index) => ({
       id: ["today", "pop", "hiphop", "rnb", "rock", "dance", "indie"][index],
@@ -359,11 +403,13 @@
     if (base.length && shelves.every((shelf) => !shelf.tracks.length)) shelves[0].tracks = base.slice(0, 12);
     const directAudius = value(audius);
     return {
+      country: code,
+      localQuery,
       day: new Date().toISOString().slice(0, 10),
       shelves,
       youtubeCharts: value(youtube),
-      youtubeLocal: value(youtube),
-      youtubeIndia: value(youtube),
+      youtubeLocal: localTracks,
+      youtubeIndia: localTracks,
       countryPlaylists: [],
       globalPlaylists: [],
       audius: directAudius,
@@ -376,6 +422,7 @@
   window.MuchiDirectApi = {
     search,
     home,
+    localSearch,
     youtubeSearch,
     radioSearch,
     audiusSearch,

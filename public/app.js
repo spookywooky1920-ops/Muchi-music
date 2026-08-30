@@ -562,12 +562,23 @@
   async function directHome() {
     try {
       if (window.MuchiDirectApi && typeof window.MuchiDirectApi.home === "function") {
-        return await window.MuchiDirectApi.home();
+        return await window.MuchiDirectApi.home(state.prefs.country || "IN");
       }
     } catch (e) {
       console.warn("direct home", e);
     }
     return null;
+  }
+
+  async function directLocal() {
+    try {
+      if (window.MuchiDirectApi && typeof window.MuchiDirectApi.localSearch === "function") {
+        return await window.MuchiDirectApi.localSearch(state.prefs.country || "IN", 18);
+      }
+    } catch (e) {
+      console.warn("direct country chart", e);
+    }
+    return [];
   }
 
   async function directRadio(q) {
@@ -4782,7 +4793,8 @@
     if (shelfId || (fallbackQ && !playlistId)) {
       try {
         const q = fallbackQ || "";
-        const data = await api(`/api/shelf?id=${encodeURIComponent(shelfId)}&q=${encodeURIComponent(q)}&full=1&gl=US`, 22000);
+        const shelfGl = shelfId === "local" ? (state.prefs.country || "IN") : "US";
+        const data = await api(`/api/shelf?id=${encodeURIComponent(shelfId)}&q=${encodeURIComponent(q)}&full=1&gl=${encodeURIComponent(shelfGl)}`, 22000);
         got = data.tracks || [];
         if (data.title && state.catalogPlaylist && !meta.title) state.catalogPlaylist.title = data.title;
       } catch {}
@@ -4881,7 +4893,8 @@
         radio: [],
       };
     }
-    if (!homeHasTracks(state.home)) {
+    const localMissing = !listHasTracks(state.home.youtubeLocal) && !listHasTracks(state.home.youtubeIndia);
+    if (!homeHasTracks(state.home) || localMissing) {
       const direct = await directHome();
       if (direct) state.home = mergeHome(state.home, direct);
     }
@@ -4925,15 +4938,26 @@
       }
       if (listHasTracks(s.tracks)) paintHomeSoon();
     }));
-    const localEmpty = !(h.youtubeLocal && h.youtubeLocal.length) && !(h.youtubeIndia && h.youtubeIndia.length);
+    const localEmpty = !listHasTracks(h.youtubeLocal) && !listHasTracks(h.youtubeIndia);
     if (localEmpty) {
-      try {
-        const data = await api(`/api/youtube/search?q=${encodeURIComponent("english pop hits official audio")}&gl=US`, 16000);
-        if (!h.shelves.some((s) => s.id === "today" && s.tracks && s.tracks.length)) {
-          h.youtubeCharts = data.tracks || [];
-        }
+      const direct = await directLocal();
+      if (listHasTracks(direct)) {
+        h.youtubeLocal = direct;
+        h.youtubeIndia = direct;
+        h.localQuery = h.localQuery || "top hits official audio";
         paintHomeSoon();
-      } catch {}
+      } else {
+        try {
+          const q = h.localQuery || "top hits official audio";
+          const data = await api(`/api/youtube/search?q=${encodeURIComponent(q)}&gl=${encodeURIComponent(state.prefs.country || "IN")}`, 16000);
+          h.youtubeLocal = data.tracks || [];
+          h.youtubeIndia = h.youtubeLocal;
+          if (!h.shelves.some((s) => s.id === "today" && s.tracks && s.tracks.length)) {
+            h.youtubeCharts = data.tracks || [];
+          }
+          paintHomeSoon();
+        } catch {}
+      }
     }
   }
 
