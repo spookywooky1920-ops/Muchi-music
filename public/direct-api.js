@@ -55,6 +55,35 @@
     }
   }
 
+  // Apple exposes the Search API as JSONP rather than CORS JSON. JSONP keeps
+  // this fallback browser-direct without introducing another proxy service.
+  function jsonp(url, timeout = DEFAULT_TIMEOUT) {
+    return new Promise((resolve, reject) => {
+      const callback = `__muchi_jsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const script = document.createElement("script");
+      let timer;
+      const cleanup = () => {
+        clearTimeout(timer);
+        try { script.remove(); } catch {}
+        try { delete window[callback]; } catch { window[callback] = undefined; }
+      };
+      window[callback] = (value) => {
+        cleanup();
+        resolve(value);
+      };
+      script.onerror = () => {
+        cleanup();
+        reject(new Error("JSONP request failed"));
+      };
+      timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("JSONP request timed out"));
+      }, timeout);
+      script.src = `${url}${url.includes("?") ? "&" : "?"}callback=${encodeURIComponent(callback)}`;
+      (document.head || document.documentElement).appendChild(script);
+    });
+  }
+
   async function first(urls, options = {}, timeout = DEFAULT_TIMEOUT, valid = () => true) {
     const jobs = urls.map(async (url) => {
       const value = await json(url, options, timeout);
@@ -202,11 +231,15 @@
   }
 
   async function appleSearch(query, limit = 24) {
-    const data = await json(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=${Math.min(limit, 50)}`,
-      {},
-      8000
-    );
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=${Math.min(limit, 50)}`;
+    let data;
+    try {
+      data = await jsonp(url, 8000);
+    } catch {
+      // Some browsers or privacy extensions allow CORS even though the
+      // documented interface is JSONP, so keep fetch as a secondary path.
+      data = await json(url, {}, 8000);
+    }
     return (data.results || []).map(mapApple).filter(Boolean);
   }
 

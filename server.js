@@ -662,6 +662,8 @@ async function itunesSearch(query) {
         album: t.collectionName || "",
         duration: Math.round((t.trackTimeMillis || 0) / 1000),
         artwork: String(t.artworkUrl100 || "").replace("100x100bb", "400x400bb") || "/cover-default.png",
+        streamUrl: t.previewUrl || "",
+        preview: !!t.previewUrl,
         playQuery: `${t.trackName || ""} ${t.artistName || ""} official audio`.trim(),
       });
     }
@@ -1286,6 +1288,8 @@ async function handleApi(req, res, url) {
               album: t.collectionName || "",
               duration: Math.round((t.trackTimeMillis || 0) / 1000),
               artwork: String(t.artworkUrl100 || "").replace("100x100bb", "600x600bb") || "/cover-default.png",
+              streamUrl: t.previewUrl || "",
+              preview: !!t.previewUrl,
               playQuery: `${t.trackName || ""} ${t.artistName || artistName} official audio`.trim(),
             });
           }
