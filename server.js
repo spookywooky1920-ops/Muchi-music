@@ -620,6 +620,25 @@ async function searchYouTube(query, gl, fast) {
   return tracks;
 }
 
+async function searchCountryShelf(shelf, gl, fast = true) {
+  const queries = Array.isArray(shelf && shelf.queries) && shelf.queries.length
+    ? shelf.queries
+    : [shelf && shelf.query].filter(Boolean);
+  const settled = await Promise.allSettled(queries.map((query) => searchYouTube(query, gl, fast)));
+  const seen = new Set();
+  const out = [];
+  for (const result of settled) {
+    if (result.status !== "fulfilled") continue;
+    for (const track of result.value || []) {
+      const key = String(track && (track.id || track.videoId || track.title) || "").toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(track);
+    }
+  }
+  return out;
+}
+
 function mapAudiusTrack(t) {
   if (!t || !t.id) return null;
   const user = t.user || {};
@@ -968,6 +987,172 @@ const ENGLISH_SHELVES = [
   { id: "indie", title: "Indie", query: "indie pop alternative official audio" },
 ];
 
+const COUNTRY_LABELS = {
+  IN: "India", US: "United States", GB: "United Kingdom", CA: "Canada", AU: "Australia",
+  DE: "Germany", FR: "France", JP: "Japan", KR: "South Korea", BR: "Brazil", MX: "Mexico",
+  NG: "Nigeria", ZA: "South Africa", AE: "UAE", SA: "Saudi Arabia", PK: "Pakistan",
+  BD: "Bangladesh", ID: "Indonesia", MY: "Malaysia", SG: "Singapore", PH: "Philippines",
+  TH: "Thailand", VN: "Vietnam", EG: "Egypt", IT: "Italy", ES: "Spain", TR: "Turkey",
+  NZ: "New Zealand", NL: "Netherlands", SE: "Sweden",
+};
+
+// Search terms intentionally carry the country into every genre query. This
+// keeps the seven fixed Home shelves useful for both large and smaller
+// markets instead of showing the same US/English feed everywhere.
+const COUNTRY_MUSIC_TERMS = {
+  IN: "Indian Hindi Bollywood",
+  US: "US American",
+  GB: "UK British",
+  CA: "Canadian",
+  AU: "Australian",
+  DE: "German Deutschland",
+  FR: "French France",
+  JP: "Japanese J-pop",
+  KR: "Korean K-pop",
+  BR: "Brazilian Portuguese",
+  MX: "Mexican Spanish",
+  NG: "Nigerian Afrobeats",
+  ZA: "South African",
+  AE: "Arabic UAE",
+  SA: "Saudi Khaleeji Arabic",
+  PK: "Pakistani Urdu",
+  BD: "Bangla Bengali Bangladesh",
+  ID: "Indonesian",
+  MY: "Malaysian Malay",
+  SG: "Singaporean",
+  PH: "Filipino OPM",
+  TH: "Thai T-pop",
+  VN: "Vietnamese V-pop",
+  EG: "Egyptian Arabic",
+  IT: "Italian",
+  ES: "Spanish Spain",
+  TR: "Turkish",
+  NZ: "New Zealand",
+  NL: "Dutch Netherlands",
+  SE: "Swedish",
+};
+
+// Extra rows keep the country feed regional rather than reducing every market
+// to the same English-language genre labels.
+const COUNTRY_REGIONAL_PLAYLISTS = {
+  IN: [
+    { id: "punjabi", title: "Punjabi & Bhangra", query: "Punjabi bhangra hits official audio" },
+    { id: "tamil", title: "Tamil & Kollywood", query: "Tamil Kollywood hits official audio" },
+    { id: "telugu", title: "Telugu & Tollywood", query: "Telugu Tollywood hits official audio" },
+    { id: "bangla", title: "Bangla India", query: "Bangla Bengali songs India official audio" },
+    { id: "marathi", title: "Marathi Hits", query: "Marathi songs hits official audio" },
+  ],
+  US: [
+    { id: "country", title: "Country & Americana", query: "US country Americana hits official audio" },
+    { id: "latin", title: "US Latin", query: "US Latin reggaeton hits official audio" },
+    { id: "southern", title: "Southern Hip-Hop", query: "US southern hip hop rap hits official audio" },
+  ],
+  GB: [
+    { id: "drill", title: "UK Drill", query: "UK drill hits official audio" },
+    { id: "grime", title: "UK Grime", query: "UK grime hits official audio" },
+  ],
+  CA: [
+    { id: "french", title: "French Canadian", query: "French Canadian hits official audio" },
+    { id: "indie", title: "Canadian Indie", query: "Canadian indie rock hits official audio" },
+  ],
+  AU: [
+    { id: "rock", title: "Aussie Rock", query: "Australian rock hits official audio" },
+    { id: "australian-indie", title: "Australian Indie", query: "Australian indie hits official audio" }
+  ],
+  DE: [{ id: "rap", title: "German Rap", query: "German rap Deutschrap hits official audio" }],
+  FR: [{ id: "rap", title: "French Rap", query: "French rap hits official audio" }],
+  JP: [
+    { id: "anime", title: "Anime Songs", query: "Japanese anime songs official audio" },
+    { id: "jrock", title: "J-Rock", query: "Japanese J-rock hits official audio" },
+  ],
+  KR: [
+    { id: "krnb", title: "K-R&B", query: "Korean K-R&B hits official audio" },
+    { id: "khiphop", title: "K-Hip-Hop", query: "Korean K-hip-hop hits official audio" },
+  ],
+  BR: [
+    { id: "funk", title: "Brazilian Funk", query: "Brazilian funk hits official audio" },
+    { id: "sertanejo", title: "Sertanejo", query: "Brazilian sertanejo hits official audio" },
+  ],
+  MX: [
+    { id: "regional", title: "Regional Mexican", query: "Mexican regional hits official audio" },
+    { id: "reggaeton", title: "Mexican Reggaeton", query: "Mexican reggaeton hits official audio" },
+  ],
+  NG: [
+    { id: "afrobeats", title: "Afrobeats", query: "Nigerian Afrobeats hits official audio" },
+    { id: "afropop", title: "Nigerian Afropop", query: "Nigerian Afropop hits official audio" },
+  ],
+  ZA: [
+    { id: "amapiano", title: "Amapiano", query: "South African amapiano hits official audio" },
+    { id: "house", title: "South African House", query: "South African house dance hits official audio" },
+  ],
+  PK: [
+    { id: "qawwali", title: "Qawwali & Sufi", query: "Pakistani qawwali sufi official audio" },
+    { id: "pop", title: "Pakistani Pop", query: "Pakistani pop hits official audio" },
+  ],
+  BD: [{ id: "bangla", title: "Bangla Hits", query: "Bangladesh Bangla hits official audio" }],
+  PH: [{ id: "opm", title: "OPM", query: "Filipino OPM hits official audio" }],
+  ID: [{ id: "indo", title: "Indonesian Pop", query: "Indonesian pop hits official audio" }],
+  TH: [{ id: "tpop", title: "Thai T-Pop", query: "Thai T-pop hits official audio" }],
+  VN: [{ id: "vpop", title: "Vietnamese V-Pop", query: "Vietnamese V-pop hits official audio" }],
+  AE: [{ id: "arabic", title: "Arabic Gulf", query: "UAE Arabic Khaleeji hits official audio" }],
+  SA: [{ id: "khaleeji", title: "Saudi Khaleeji", query: "Saudi Khaleeji hits official audio" }],
+  EG: [{ id: "mahraganat", title: "Egyptian Mahraganat", query: "Egyptian mahraganat hits official audio" }],
+  IT: [{ id: "italian", title: "Italian Pop", query: "Italian pop hits official audio" }],
+  ES: [{ id: "flamenco", title: "Spanish & Flamenco", query: "Spanish flamenco hits official audio" }],
+  TR: [{ id: "turkish", title: "Türkçe Pop", query: "Turkish pop hits official audio" }],
+};
+
+function countryLabel(gl) {
+  return COUNTRY_LABELS[gl] || gl;
+}
+
+function countryMusicTerm(gl) {
+  return COUNTRY_MUSIC_TERMS[gl] || countryLabel(gl);
+}
+
+function countryShelves(gl) {
+  const label = countryLabel(gl);
+  const term = countryMusicTerm(gl);
+  const top = LOCAL_CHARTS[gl] || `${term} top songs`;
+  const today = `${top} latest trending official audio`;
+  return [
+    { id: "today", title: "Today's Top Hits", query: today, queries: [today, `${term} biggest hits classic songs all time official audio`] },
+    { id: "pop", title: "Pop", query: `${term} pop hits official audio` },
+    { id: "hiphop", title: "Hip-Hop", query: `${term} hip hop rap hits official audio` },
+    { id: "rnb", title: "R&B", query: `${term} R&B soul hits official audio` },
+    { id: "rock", title: "Rock", query: `${term} rock alternative hits official audio` },
+    { id: "dance", title: "Dance & Electronic", query: `${term} dance EDM electronic hits official audio` },
+    { id: "indie", title: "Indie", query: `${term} indie alternative songs official audio` },
+  ].map((shelf) => ({ ...shelf, country: gl, countryLabel: label }));
+}
+
+function countryPlaylists(gl) {
+  const label = countryLabel(gl);
+  const term = countryMusicTerm(gl);
+  const year = new Date().getUTCFullYear();
+  const base = [
+    { id: "new", title: `New & Trending in ${label}`, query: `${term} new songs ${year} official audio` },
+    { id: "hits", title: `${label} Biggest Hits`, query: `${term} biggest hits official audio` },
+    { id: "classics", title: `${label} Classics`, query: `${term} classic songs all time official audio` },
+    { id: "love", title: `${label} Love Songs`, query: `${term} romantic love songs official audio` },
+    { id: "party", title: `${label} Party & Dance`, query: `${term} party dance songs official audio` },
+    { id: "indie", title: `${label} Indie & Underground`, query: `${term} indie alternative underground songs official audio` },
+    { id: "workout", title: `${label} Workout`, query: `${term} workout hip hop dance songs official audio` },
+  ];
+  const regional = (COUNTRY_REGIONAL_PLAYLISTS[gl] || []).map((playlist) => ({
+    ...playlist,
+    title: `${playlist.title} in ${label}`,
+  }));
+  return [...base, ...regional].map((playlist) => ({
+    ...playlist,
+    id: `${gl.toLowerCase()}-${playlist.id}`,
+    kind: "playlist",
+    source: "youtube",
+    country: gl,
+    countryLabel: label,
+  }));
+}
+
 const MOODS_BY_COUNTRY = {
   IN: [
     { id: "bollywood", title: "Bollywood Gold", query: "best bollywood songs official", color: "#ff4d6d", tags: "bollywood hindi arijit" },
@@ -1075,92 +1260,94 @@ async function handleApi(req, res, url) {
 
   if (p === "/api/home") {
     const gl = regionCode(url.searchParams.get("gl"));
-    const localQ = LOCAL_CHARTS[gl] || "top hits official audio";
-    const take = (r) => (r.status === "fulfilled" ? r.value : []);
-    let globalPart = { shelves: [], globalPlaylists: [], audius: [], underground: [], radio: [] };
-    let localPart = { youtubeLocal: [], countryPlaylists: [] };
+    const shelfDefs = countryShelves(gl);
+    const playlistDefs = countryPlaylists(gl);
+    const takeTracks = (result) => {
+      if (result.status !== "fulfilled") return [];
+      return Array.isArray(result.value) ? result.value : (result.value && result.value.tracks) || [];
+    };
+    let catalog = {
+      shelves: shelfDefs.map((shelf) => ({ ...shelf, tracks: [] })),
+      countryPlaylists: playlistDefs.map((playlist) => ({ ...playlist, tracks: [] })),
+      audius: [],
+      underground: [],
+      radio: [],
+    };
     try {
-      globalPart = await cached(`home:english:v5:${utcDay()}`, 86400000, async () => {
-        const prime = ENGLISH_SHELVES.slice(0, 2);
-        const jobs = prime.map((s) => searchYouTube(s.query, "US", true));
+      catalog = await cached(`home:country:${gl}:v7:${utcDay()}`, 86400000, async () => {
+        const shelfJobs = shelfDefs.map((shelf) => searchCountryShelf(shelf, gl, true));
+        const playlistJobs = playlistDefs.map((playlist) =>
+          youtubeMusicSearch(`${playlist.query} playlist`, gl, 6000, { limit: 80 })
+        );
         const extra = await Promise.allSettled([
-          ...jobs,
-          youtubeMusicSearch("global top hits playlist", "US", 6000, { limit: 40 }),
-          audiusTrending(),
+          ...shelfJobs,
+          ...playlistJobs,
+          audiusSearch(`${countryMusicTerm(gl)} music`, 24),
           audiusUnderground(),
           radioSearch("hits", 16),
         ]);
-        const filled = prime.map((s, i) => take(extra[i]).slice(0, 18));
-        const shelves = ENGLISH_SHELVES.map((s, i) => ({
-          id: s.id,
-          title: s.title,
-          query: s.query,
-          tracks: i < filled.length ? filled[i] : [],
+        const shelves = shelfDefs.map((shelf, i) => ({
+          ...shelf,
+          tracks: takeTracks(extra[i]).slice(0, i === 0 ? 60 : 30),
         }));
-        const globalPlaylists = uniqPlaylists([
-          ...playlistsOf(extra[0].status === "fulfilled" ? extra[0].value : []),
-          ...playlistsOf(extra[1].status === "fulfilled" ? extra[1].value : []),
-          ...playlistsOf(extra[2].status === "fulfilled" ? extra[2].value : []),
-        ]).slice(0, 16);
+        const custom = playlistDefs.map((playlist, i) => {
+          const bundle = extra[shelfJobs.length + i];
+          const preview = takeTracks(bundle).slice(0, 24);
+          const hit = bundle.status === "fulfilled" ? playlistsOf(bundle.value)[0] : null;
+          return {
+            ...playlist,
+            id: playlist.id,
+            title: playlist.title,
+            playlistId: hit && hit.playlistId || "",
+            artwork: (hit && hit.artwork) || (preview[0] && preview[0].artwork) || "/cover-default.png",
+            tracks: preview,
+          };
+        });
+        const offset = shelfJobs.length + playlistJobs.length;
         return {
           shelves,
-          globalPlaylists,
-          audius: take(extra[jobs.length + 1]).slice(0, 18),
-          underground: take(extra[jobs.length + 2]).slice(0, 12),
-          radio: take(extra[jobs.length + 3]).slice(0, 12),
+          countryPlaylists: custom,
+          audius: takeTracks(extra[offset]).slice(0, 24),
+          underground: takeTracks(extra[offset + 1]).slice(0, 18),
+          radio: takeTracks(extra[offset + 2]).slice(0, 18),
         };
       });
     } catch (e) {
-      console.error("home english", e);
-      globalPart.shelves = ENGLISH_SHELVES.map((s) => ({ id: s.id, title: s.title, query: s.query, tracks: [] }));
+      console.error("home country", e);
     }
-    try {
-      localPart = await cached(`home:local:${gl}:v5:${utcDay()}`, 86400000, async () => {
-        const [ytLocal, ytPl] = await Promise.allSettled([
-          searchYouTube(localQ, gl, true),
-          youtubeMusicSearch(`${localQ} playlist`, gl, 6000, { limit: 40 }),
-        ]);
-        return {
-          youtubeLocal: take(ytLocal).slice(0, 18),
-          countryPlaylists: uniqPlaylists([
-            ...playlistsOf(ytLocal.status === "fulfilled" ? ytLocal.value : []),
-            ...playlistsOf(ytPl.status === "fulfilled" ? ytPl.value : []),
-          ]).slice(0, 12),
-        };
-      });
-    } catch (e) {
-      console.error("home local", e);
-    }
-    const charts = (globalPart.shelves[0] && globalPart.shelves[0].tracks) || [];
+    const shelves = catalog.shelves && catalog.shelves.length ? catalog.shelves : shelfDefs;
+    const charts = (shelves[0] && shelves[0].tracks) || [];
+    const localQ = (shelves[0] && shelves[0].query) || (LOCAL_CHARTS[gl] || "top hits official audio");
     return sendJSON(res, 200, {
       country: gl,
+      countryLabel: countryLabel(gl),
       day: utcDay(),
       localQuery: localQ,
       moods: moodsForCountry(gl),
-      shelves: globalPart.shelves.length
-        ? globalPart.shelves
-        : ENGLISH_SHELVES.map((s) => ({ id: s.id, title: s.title, query: s.query, tracks: [] })),
+      shelves,
       youtubeCharts: charts,
-      youtubeLocal: localPart.youtubeLocal,
-      youtubeIndia: localPart.youtubeLocal,
-      countryPlaylists: localPart.countryPlaylists || [],
-      globalPlaylists: globalPart.globalPlaylists || [],
-      audius: globalPart.audius,
-      underground: globalPart.underground,
-      radio: globalPart.radio,
+      youtubeLocal: charts,
+      youtubeIndia: charts,
+      countryPlaylists: catalog.countryPlaylists || playlistDefs,
+      // The old UI called this row "Global". Keep the field for clients that
+      // know it, but the new Home feed is intentionally country-specific.
+      globalPlaylists: [],
+      audius: catalog.audius || [],
+      underground: catalog.underground || [],
+      radio: catalog.radio || [],
     });
   }
 
   if (p === "/api/shelf") {
     const id = url.searchParams.get("id") || "";
-    const shelf = ENGLISH_SHELVES.find((s) => s.id === id);
+    const gl = regionCode(url.searchParams.get("gl"));
+    const shelf = countryShelves(gl).find((s) => s.id === id) || ENGLISH_SHELVES.find((s) => s.id === id);
     const q = url.searchParams.get("q") || (shelf && shelf.query) || "";
     const full = url.searchParams.get("full") === "1";
     if (!q.trim()) return sendJSON(res, 400, { error: "Missing query" });
-    const gl = url.searchParams.get("gl") || "US";
     const cap = full ? 80 : 18;
     const tracks = await cached(`shelf:${full ? "full" : "row"}:${id}:${q}:${gl}:${utcDay()}`, 86400000, async () => {
-      const rows = await searchYouTube(q, gl, !full);
+      const rows = await searchCountryShelf(shelf || { id, query: q }, gl, !full);
       return (rows || []).slice(0, cap);
     });
     return sendJSON(res, 200, {

@@ -4,4 +4,4 @@ Free Material You music player. YouTube plays in Google’s official IFrame play
 
 Muchi is not affiliated with YouTube, Google, Spotify, or Audius.
 
-The web preview normally uses the Muchi API routes. If a host blocks server-side outbound requests, `public/direct-api.js` falls back to public catalog APIs in the browser, so music discovery does not depend on GitHub. YouTube search results still open in the official YouTube player; Audius and radio streams play directly.
+The web preview normally uses the Muchi API routes. Home shelves and custom playlists are built from the selected country, including local top songs, new and classic hits, regional genres, and country-matched Pop, Hip-Hop, Rock, Dance & Electronic, and Indie rows. If a host blocks server-side outbound requests, `public/direct-api.js` falls back to public catalog APIs in the browser, so music discovery does not depend on GitHub. YouTube search results still open in the official YouTube player; Audius and radio streams play directly.

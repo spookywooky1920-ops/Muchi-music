@@ -498,6 +498,30 @@
     return out;
   }
 
+  function mergePlaylistLists(primary, secondary) {
+    const out = [];
+    const positions = new Map();
+    for (const playlist of [...(primary || []), ...(secondary || [])]) {
+      if (!playlist) continue;
+      const key = String(playlist.id || playlist.playlistId || playlist.title || "").toLowerCase();
+      if (!key) continue;
+      const index = positions.get(key);
+      if (index === undefined) {
+        positions.set(key, out.length);
+        out.push({ ...playlist });
+        continue;
+      }
+      const current = out[index];
+      out[index] = {
+        ...playlist,
+        ...current,
+        tracks: listHasTracks(current.tracks) ? current.tracks : (playlist.tracks || []),
+        artwork: current.artwork || playlist.artwork,
+      };
+    }
+    return out;
+  }
+
   function mergeSearch(primary, direct) {
     const a = primary || {};
     const b = direct || {};
@@ -536,21 +560,21 @@
       youtubeCharts: mergeTrackLists(a.youtubeCharts, b.youtubeCharts),
       youtubeLocal: mergeTrackLists(a.youtubeLocal, b.youtubeLocal),
       youtubeIndia: mergeTrackLists(a.youtubeIndia, b.youtubeIndia),
-      countryPlaylists: mergeTrackLists(a.countryPlaylists, b.countryPlaylists),
-      globalPlaylists: mergeTrackLists(a.globalPlaylists, b.globalPlaylists),
+      countryPlaylists: mergePlaylistLists(a.countryPlaylists, b.countryPlaylists),
+      globalPlaylists: mergePlaylistLists(a.globalPlaylists, b.globalPlaylists),
       audius: mergeTrackLists(a.audius, b.audius),
       underground: mergeTrackLists(a.underground, b.underground),
       radio: mergeTrackLists(a.radio, b.radio),
     };
   }
 
-  async function directSearch(q) {
+  async function directSearch(q, limit = 24) {
     try {
       if (window.MuchiDirectApi && typeof window.MuchiDirectApi.search === "function") {
         return await window.MuchiDirectApi.search(q, {
           quality: resolvedQuality(),
           codec: state.prefs.codec || "auto",
-          limit: 24,
+          limit,
         });
       }
     } catch (e) {
@@ -573,7 +597,7 @@
   async function directLocal() {
     try {
       if (window.MuchiDirectApi && typeof window.MuchiDirectApi.localSearch === "function") {
-        return await window.MuchiDirectApi.localSearch(state.prefs.country || "IN", 18);
+        return await window.MuchiDirectApi.localSearch(state.prefs.country || "IN", 50);
       }
     } catch (e) {
       console.warn("direct country chart", e);
@@ -2817,7 +2841,7 @@
         <div class="hero">
           <div>
             <h1>${greeting()}</h1>
-            <p>Loading English hits and genres…</p>
+            <p>Loading country-matched hits and genres…</p>
           </div>
         </div>
         ${skeleton()}`;
@@ -2825,7 +2849,7 @@
     const recents = state.recents.slice(0, 10);
     const local = h.youtubeLocal && h.youtubeLocal.length ? h.youtubeLocal : h.youtubeIndia;
     const region = countryName(h.country || state.prefs.country);
-    const shelves = FALLBACK_SHELVES.map((fb) => {
+    const shelves = countryShelfDefaults().map((fb) => {
       const hit = (h.shelves || []).find((s) => s.id === fb.id);
       return {
         id: fb.id,
@@ -2843,7 +2867,7 @@
         <div class="hero-orbs" aria-hidden="true"><i></i><i></i><i></i></div>
         <div>
           <h1>${greeting()}</h1>
-          <p>English hits · pop, hip-hop, rock, R&amp;B, dance · a little from ${escapeHTML(region)}</p>
+          <p>Country-matched hits · pop, hip-hop, rock, R&amp;B, dance and indie · trending, new and classic songs from ${escapeHTML(region)}</p>
         </div>
       </div>
       <div class="status-row">
@@ -2852,7 +2876,7 @@
         <span class="status-pill ${rdOk ? "" : "warn"}"><i></i>Radio ${rdOk ? "ready" : "slow"}</span>
       </div>
       <div class="section">
-        <div class="section-head"><h2>${tasteProfile().plays ? "For your taste" : "Moods & genres"}</h2><span>English first</span></div>
+        <div class="section-head"><h2>${tasteProfile().plays ? "For your taste" : "Moods & genres"}</h2><span>Country matched</span></div>
         <div class="chips taste-tabs">
           <button type="button" class="chip ${state.homeTasteTab !== "discover" ? "active" : ""}" data-taste-tab="moods">Moods</button>
           <button type="button" class="chip ${state.homeTasteTab === "discover" ? "active" : ""}" data-taste-tab="discover">Discovery Mix</button>
@@ -2873,8 +2897,8 @@
       </div>
       ${recents.length ? section("Jump back in", recents) : ""}
       ${state.forYou && state.forYou.length ? section("Made for you", state.forYou) : ""}
-      ${playlistSection(`Trending in ${region}`, h.countryPlaylists || [], "country")}
-      ${section(`Top songs in ${region}`, local, "local")}
+      ${section(`Top songs according to ${region}`, local, "local")}
+      ${playlistSection(`More ${region} playlists`, h.countryPlaylists || [], "country")}
       ${playlistSection("Global trending playlists", h.globalPlaylists || [], "global")}
       ${shelves.map((s) => section(s.title, s.tracks, s.id || s.title)).join("")}
       ${section("Independent artists", h.audius, "audius")}
@@ -4725,13 +4749,13 @@
 
   function openShelfPlaylist(key) {
     const h = state.home || {};
-    const fb = FALLBACK_SHELVES.find((s) => s.id === key);
+    const fb = countryShelfDefaults().find((s) => s.id === key);
     let title = "Songs";
     let tracks = [];
     let query = "";
     let shelfId = "";
     if (key === "local") {
-      title = `Top songs in ${countryName(h.country || state.prefs.country)}`;
+      title = `Top songs according to ${countryName(h.country || state.prefs.country)}`;
       tracks = h.youtubeLocal && h.youtubeLocal.length ? h.youtubeLocal : (h.youtubeIndia || []);
       query = h.localQuery || "";
     } else if (key === "audius") {
@@ -4793,7 +4817,7 @@
     if (shelfId || (fallbackQ && !playlistId)) {
       try {
         const q = fallbackQ || "";
-        const shelfGl = shelfId === "local" ? (state.prefs.country || "IN") : "US";
+        const shelfGl = state.prefs.country || "IN";
         const data = await api(`/api/shelf?id=${encodeURIComponent(shelfId)}&q=${encodeURIComponent(q)}&full=1&gl=${encodeURIComponent(shelfGl)}`, 22000);
         got = data.tracks || [];
         if (data.title && state.catalogPlaylist && !meta.title) state.catalogPlaylist.title = data.title;
@@ -4810,6 +4834,10 @@
         const data = await api(`/api/search?q=${encodeURIComponent(fallbackQ)}&${glq()}`, 18000);
         got = [].concat(data.youtube || [], data.apple || [], data.audius || []);
       } catch {}
+    }
+    if (!got.length && fallbackQ) {
+      const direct = await directSearch(fallbackQ, 80);
+      if (direct) got = [].concat(direct.youtube || [], direct.apple || [], direct.audius || []);
     }
     if (state.activePlaylist !== "catalog" || !state.catalogPlaylist) return;
     if (got.length) {
@@ -4830,6 +4858,24 @@
     { id: "dance", title: "Dance & Electronic", query: "edm dance hits official audio" },
     { id: "indie", title: "Indie", query: "indie pop alternative official audio" },
   ];
+
+  function countryShelfDefaults() {
+    try {
+      const defs = window.MuchiDirectApi && window.MuchiDirectApi.shelfDefinitions;
+      const rows = typeof defs === "function" ? defs(state.prefs.country || "IN") : [];
+      if (Array.isArray(rows) && rows.length) return rows;
+    } catch {}
+    return FALLBACK_SHELVES;
+  }
+
+  function countryPlaylistDefaults() {
+    try {
+      const defs = window.MuchiDirectApi && window.MuchiDirectApi.playlistDefinitions;
+      const rows = typeof defs === "function" ? defs(state.prefs.country || "IN") : [];
+      if (Array.isArray(rows) && rows.length) return rows;
+    } catch {}
+    return [];
+  }
 
   let homeFetchedAt = 0;
   function detectCountry() {
@@ -4882,11 +4928,13 @@
       state.home = {
         moods: [],
         day: utcDayClient(),
-        shelves: FALLBACK_SHELVES.map((s) => ({ ...s, tracks: [] })),
+        shelves: countryShelfDefaults().map((s) => ({ ...s, tracks: [] })),
+        country: state.prefs.country || "IN",
+        countryLabel: countryName(state.prefs.country || "IN"),
         youtubeCharts: [],
         youtubeIndia: [],
         youtubeLocal: [],
-        countryPlaylists: [],
+        countryPlaylists: countryPlaylistDefaults().map((p) => ({ ...p, tracks: [] })),
         globalPlaylists: [],
         audius: [],
         underground: [],
@@ -4899,7 +4947,10 @@
       if (direct) state.home = mergeHome(state.home, direct);
     }
     if (!state.home.shelves || !state.home.shelves.length) {
-      state.home.shelves = FALLBACK_SHELVES.map((s) => ({ ...s, tracks: [] }));
+      state.home.shelves = countryShelfDefaults().map((s) => ({ ...s, tracks: [] }));
+    }
+    if (!state.home.countryPlaylists || !state.home.countryPlaylists.length) {
+      state.home.countryPlaylists = countryPlaylistDefaults().map((p) => ({ ...p, tracks: [] }));
     }
     if (!homeHasTracks(state.home)) toast("Direct music APIs are unavailable right now.");
     homeFetchedAt = Date.now();
@@ -4921,20 +4972,21 @@
   async function hydrateShelves() {
     const h = state.home;
     if (!h) return;
-    const rows = h.shelves && h.shelves.length ? h.shelves : FALLBACK_SHELVES.map((s) => ({ ...s, tracks: [] }));
+    const defaults = countryShelfDefaults();
+    const rows = h.shelves && h.shelves.length ? h.shelves : defaults.map((s) => ({ ...s, tracks: [] }));
     h.shelves = rows;
     await Promise.all(rows.map(async (s) => {
       if (s.tracks && s.tracks.length) return;
-      const q = s.query || (FALLBACK_SHELVES.find((d) => d.id === s.id) || {}).query;
+      const q = s.query || (defaults.find((d) => d.id === s.id) || {}).query;
       if (!q) return;
       try {
-        const data = await api(`/api/shelf?id=${encodeURIComponent(s.id || "")}&q=${encodeURIComponent(q)}&gl=US`, 16000);
+        const data = await api(`/api/shelf?id=${encodeURIComponent(s.id || "")}&q=${encodeURIComponent(q)}&gl=${encodeURIComponent(state.prefs.country || "IN")}`, 16000);
         s.tracks = data.tracks || [];
         if (!s.title && data.title) s.title = data.title;
       } catch {}
       if (!listHasTracks(s.tracks)) {
-        const direct = await directSearch(q);
-        if (direct) s.tracks = [].concat(direct.youtube || [], direct.apple || [], direct.audius || []).slice(0, 18);
+        const direct = await directSearch(q, 30);
+        if (direct) s.tracks = [].concat(direct.youtube || [], direct.apple || [], direct.audius || []).slice(0, 30);
       }
       if (listHasTracks(s.tracks)) paintHomeSoon();
     }));
@@ -4959,6 +5011,30 @@
         } catch {}
       }
     }
+    await hydrateCountryPlaylists();
+  }
+
+  async function hydrateCountryPlaylists() {
+    const h = state.home;
+    const playlists = h && h.countryPlaylists;
+    if (!Array.isArray(playlists) || !playlists.length) return;
+    await Promise.all(playlists.map(async (playlist) => {
+      if (listHasTracks(playlist.tracks) || !playlist.query) return;
+      let tracks = [];
+      try {
+        const data = await api(`/api/search?q=${encodeURIComponent(playlist.query)}&${glq()}`, 16000);
+        tracks = [].concat(data.youtube || [], data.apple || [], data.audius || []).slice(0, 24);
+      } catch {}
+      if (!tracks.length) {
+        const direct = await directSearch(playlist.query, 24);
+        if (direct) tracks = [].concat(direct.youtube || [], direct.apple || [], direct.audius || []).slice(0, 24);
+      }
+      if (tracks.length) {
+        playlist.tracks = tracks;
+        playlist.artwork = playlist.artwork || tracks[0].artwork;
+        paintHomeSoon();
+      }
+    }));
   }
 
   async function loadForYou() {
