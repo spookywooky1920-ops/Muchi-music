@@ -638,6 +638,7 @@ function mapAudiusTrack(t) {
     plays: t.play_count || 0,
     permalink: t.permalink || "",
     streamUrl: (t.stream && t.stream.url) || "",
+    direct: !!(t.stream && t.stream.url),
   };
 }
 
@@ -664,6 +665,7 @@ async function itunesSearch(query) {
         artwork: String(t.artworkUrl100 || "").replace("100x100bb", "400x400bb") || "/cover-default.png",
         streamUrl: t.previewUrl || "",
         preview: !!t.previewUrl,
+        direct: !!t.previewUrl,
         playQuery: `${t.trackName || ""} ${t.artistName || ""} official audio`.trim(),
       });
     }
@@ -1290,6 +1292,7 @@ async function handleApi(req, res, url) {
               artwork: String(t.artworkUrl100 || "").replace("100x100bb", "600x600bb") || "/cover-default.png",
               streamUrl: t.previewUrl || "",
               preview: !!t.previewUrl,
+              direct: !!t.previewUrl,
               playQuery: `${t.trackName || ""} ${t.artistName || artistName} official audio`.trim(),
             });
           }

@@ -151,6 +151,7 @@
       artwork,
       streamUrl: preview,
       preview: !!preview,
+      direct: true,
       playQuery: `${row.trackName || ""} ${row.artistName || ""} official audio`.trim(),
     };
   }
@@ -175,6 +176,7 @@
       streamUrl: row.stream && row.stream.url
         ? row.stream.url
         : `https://api.audius.co/v1/tracks/${encodeURIComponent(row.id)}/stream?app_name=${APP_NAME}`,
+      direct: true,
     };
   }
 

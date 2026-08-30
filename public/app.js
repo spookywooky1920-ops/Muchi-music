@@ -1795,7 +1795,15 @@
     for (const candidate of candidates) {
       try {
         audio.src = candidate;
-        applyPlaybackPrefs();
+        if (t.direct === true || (t.source === "apple" && t.preview)) {
+          // Cross-origin preview and radio files may not grant Web Audio
+          // access. Keep normal media playback rather than silencing them
+          // when the optional sound stage is connected.
+          try { audio.playbackRate = Number(state.prefs.speed || 1); } catch {}
+          audio.volume = baseVolume();
+        } else {
+          applyPlaybackPrefs();
+        }
         await audio.play();
         fadeInTrack();
         startTimer();
