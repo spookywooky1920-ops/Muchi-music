@@ -1,7 +1,7 @@
 # Continue Muchi
 
 GitHub: https://github.com/Kaibshshdheueejw/Muchi-music-New
-Deploy: Manual Deploy latest from that repo. Do not bump APP_VERSION (stay 1.2.1). SW is **v66**.
+Deploy: Manual Deploy latest from that repo. Do not bump APP_VERSION (stay 1.2.1). SW is **v67**.
 
 User deletes GitHub `public/` then reuploads unzipped `public/` + root `server.js`. Keep `android/` + `.github/`. Drag-drop skips `.github` — upload workflow via Add file path `.github/workflows/android-apk.yml`.
 

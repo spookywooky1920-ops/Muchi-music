@@ -470,6 +470,128 @@
     }
   }
 
+  function listHasTracks(list) {
+    return Array.isArray(list) && list.some((track) => track && (track.id || track.videoId || track.trackId));
+  }
+
+  function searchHasTracks(data) {
+    if (!data) return false;
+    return [data.youtube, data.apple, data.audius, data.radio].some(listHasTracks);
+  }
+
+  function homeHasTracks(data) {
+    if (!data) return false;
+    if ([data.youtubeCharts, data.youtubeLocal, data.youtubeIndia, data.audius, data.underground, data.radio].some(listHasTracks)) return true;
+    return (data.shelves || []).some((shelf) => listHasTracks(shelf && shelf.tracks));
+  }
+
+  function mergeTrackLists(primary, secondary) {
+    const out = [];
+    const seen = new Set();
+    for (const track of [...(primary || []), ...(secondary || [])]) {
+      if (!track) continue;
+      const key = String(track.id || track.videoId || track.trackId || track.title || "").toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(track);
+    }
+    return out;
+  }
+
+  function mergeSearch(primary, direct) {
+    const a = primary || {};
+    const b = direct || {};
+    return {
+      ...b,
+      ...a,
+      query: a.query || b.query || "",
+      youtube: mergeTrackLists(a.youtube, b.youtube),
+      apple: mergeTrackLists(a.apple, b.apple),
+      audius: mergeTrackLists(a.audius, b.audius),
+      radio: mergeTrackLists(a.radio, b.radio),
+      artists: mergeTrackLists(a.artists, b.artists),
+      playlists: mergeTrackLists(a.playlists, b.playlists),
+    };
+  }
+
+  function mergeHome(primary, direct) {
+    const a = primary || {};
+    const b = direct || {};
+    const directShelves = b.shelves || [];
+    const shelves = (a.shelves || []).map((shelf) => {
+      const fallback = directShelves.find((row) => String(row.id) === String(shelf.id)) || {};
+      return {
+        ...fallback,
+        ...shelf,
+        tracks: listHasTracks(shelf.tracks) ? shelf.tracks : (fallback.tracks || []),
+      };
+    });
+    for (const fallback of directShelves) {
+      if (!shelves.some((shelf) => String(shelf.id) === String(fallback.id))) shelves.push(fallback);
+    }
+    return {
+      ...b,
+      ...a,
+      shelves,
+      youtubeCharts: mergeTrackLists(a.youtubeCharts, b.youtubeCharts),
+      youtubeLocal: mergeTrackLists(a.youtubeLocal, b.youtubeLocal),
+      youtubeIndia: mergeTrackLists(a.youtubeIndia, b.youtubeIndia),
+      countryPlaylists: mergeTrackLists(a.countryPlaylists, b.countryPlaylists),
+      globalPlaylists: mergeTrackLists(a.globalPlaylists, b.globalPlaylists),
+      audius: mergeTrackLists(a.audius, b.audius),
+      underground: mergeTrackLists(a.underground, b.underground),
+      radio: mergeTrackLists(a.radio, b.radio),
+    };
+  }
+
+  async function directSearch(q) {
+    try {
+      if (window.MuchiDirectApi && typeof window.MuchiDirectApi.search === "function") {
+        return await window.MuchiDirectApi.search(q, {
+          quality: resolvedQuality(),
+          codec: state.prefs.codec || "auto",
+          limit: 24,
+        });
+      }
+    } catch (e) {
+      console.warn("direct search", e);
+    }
+    return null;
+  }
+
+  async function directHome() {
+    try {
+      if (window.MuchiDirectApi && typeof window.MuchiDirectApi.home === "function") {
+        return await window.MuchiDirectApi.home();
+      }
+    } catch (e) {
+      console.warn("direct home", e);
+    }
+    return null;
+  }
+
+  async function directRadio(q) {
+    try {
+      if (window.MuchiDirectApi && typeof window.MuchiDirectApi.radioSearch === "function") {
+        return await window.MuchiDirectApi.radioSearch(q, 24, resolvedQuality(), state.prefs.codec || "auto");
+      }
+    } catch (e) {
+      console.warn("direct radio", e);
+    }
+    return [];
+  }
+
+  async function directYouTubeSearch(q) {
+    try {
+      if (window.MuchiDirectApi && typeof window.MuchiDirectApi.youtubeSearch === "function") {
+        return await window.MuchiDirectApi.youtubeSearch(q, 24);
+      }
+    } catch (e) {
+      console.warn("direct YouTube search", e);
+    }
+    return [];
+  }
+
   function current() {
     return state.queue[state.index] || null;
   }
@@ -832,6 +954,7 @@
   function sourceBadge(src) {
     if (src === "youtube") return `<span class="badge yt">YouTube</span>`;
     if (src === "audius") return `<span class="badge au">Audius</span>`;
+    if (src === "apple") return `<span class="badge apple">Preview</span>`;
     if (src === "download") return `<span class="badge au">Saved</span>`;
     return `<span class="badge rd">Radio</span>`;
   }
@@ -1592,6 +1715,7 @@
         rows = data.youtube || [];
       } catch {}
     }
+    if (!Array.isArray(rows) || !rows.length) rows = await directYouTubeSearch(q);
     const hit = (Array.isArray(rows) ? rows : []).find((x) => x && x.videoId);
     if (!hit) throw new Error("No playable version");
     t.videoId = hit.videoId;
@@ -1609,7 +1733,7 @@
     loadLyrics(t);
     stopTimer();
     try {
-      if (t.source === "apple" || (t.source === "youtube" && !t.videoId)) {
+      if ((t.source === "apple" && !t.streamUrl) || (t.source === "youtube" && !t.videoId)) {
         await resolveYouTubePlay(t);
       }
       if (gen !== playGen) return;
@@ -1648,19 +1772,41 @@
       if (blob) url = URL.createObjectURL(blob);
     } catch {}
     if (!url && t.source === "audius" && t.trackId) {
-      const data = await api(`/api/audius/stream/${encodeURIComponent(t.trackId)}`);
-      url = data.url;
-    }
-    if (t.source === "radio") {
-      if (t.stationId) fetch(`/api/radio/click/${encodeURIComponent(t.stationId)}`).catch(() => {});
-      if (url && /^https?:\/\//i.test(url)) url = `/api/stream?url=${encodeURIComponent(url)}`;
+      // Prefer a direct Audius stream. The local route remains a fallback for
+      // deployments where the browser cannot reach Audius because of CORS.
+      url = `https://api.audius.co/v1/tracks/${encodeURIComponent(t.trackId)}/stream?app_name=Muchi`;
+      try {
+        const data = await api(`/api/audius/stream/${encodeURIComponent(t.trackId)}`);
+        if (data && data.url) url = data.url;
+      } catch {}
     }
     if (!url) throw new Error("No stream");
-    audio.src = url;
-    applyPlaybackPrefs();
-    await audio.play();
-    fadeInTrack();
-    startTimer();
+
+    if (t.stationId) fetch(`/api/radio/click/${encodeURIComponent(t.stationId)}`).catch(() => {});
+    const candidates = [url];
+    // Radio and direct catalog responses can be played by the browser without
+    // sending the stream back through the Muchi server. Try the server pipe
+    // only after the direct URL rejects, which keeps the preview independent
+    // from server-side outbound networking.
+    if (t.source === "radio" && /^https?:\/\//i.test(url)) {
+      candidates.push(`/api/stream?url=${encodeURIComponent(url)}`);
+    }
+    let lastError = null;
+    for (const candidate of candidates) {
+      try {
+        audio.src = candidate;
+        applyPlaybackPrefs();
+        await audio.play();
+        fadeInTrack();
+        startTimer();
+        return;
+      } catch (e) {
+        lastError = e;
+        audio.pause();
+        audio.removeAttribute("src");
+      }
+    }
+    throw lastError || new Error("No stream");
   }
 
   let ytWait = null;
@@ -3529,9 +3675,9 @@
             <div><strong>Muchi ${APP_VERSION}</strong><p>${updateLine()}</p></div>
           </div>
           <div class="set-row">
-            <div><strong>Updates</strong><p>Check GitHub. Update installs over this app — no uninstall after 1.2.1.</p></div>
+              <div><strong>Updates</strong><p>Music catalogs use direct APIs. GitHub is only used when checking optional Android APK updates.</p></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="chip-btn" id="checkUpdates" type="button">Check</button>
+              <button class="chip-btn" id="checkUpdates" type="button">Check APK</button>
               <button class="chip-btn" id="installNow" type="button">${state.update && state.update.available ? "Update" : "Get APK"}</button>
               <button class="chip-btn" id="reloadApp" type="button">Reload site</button>
             </div>
@@ -4534,16 +4680,23 @@
     render();
     try {
       state.search = await api(`/api/search?q=${encodeURIComponent(q)}&${glq()}&quality=${encodeURIComponent(resolvedQuality())}&codec=${encodeURIComponent(state.prefs.codec || "auto")}`);
-      if (state.search && Array.isArray(state.search.youtube)) {
-        state.search.youtube = state.search.youtube.filter((t) => {
-          const blob = `${t && t.title || ""} ${t && t.artist || ""}`;
-          return !/\b(gameplay|walkthrough|trailer|full movie|episode|vlog|tutorial|unboxing|reaction|#shorts?|minecraft|fortnite|roblox|podcast)\b/i.test(blob);
-        });
-      }
     } catch (e) {
-      toast("Search failed. Try again.");
-      state.search = { youtube: [], audius: [], radio: [], apple: [], artists: [], playlists: [] };
+      state.search = { query: q, youtube: [], audius: [], radio: [], apple: [], artists: [], playlists: [] };
     }
+    // A preview server can be alive while its runtime is not allowed to make
+    // outbound requests. Fill an empty response from public APIs directly in
+    // the browser instead of treating GitHub as a catalog backend.
+    if (!searchHasTracks(state.search)) {
+      const direct = await directSearch(q);
+      if (direct) state.search = mergeSearch(state.search, direct);
+    }
+    if (state.search && Array.isArray(state.search.youtube)) {
+      state.search.youtube = state.search.youtube.filter((t) => {
+        const blob = `${t && t.title || ""} ${t && t.artist || ""}`;
+        return !/\b(gameplay|walkthrough|trailer|full movie|episode|vlog|tutorial|unboxing|reaction|#shorts?|minecraft|fortnite|roblox|podcast)\b/i.test(blob);
+      });
+    }
+    if (!searchHasTracks(state.search) && state.query === q) toast("Direct music APIs are unavailable right now.");
     render();
   }
 
@@ -4719,11 +4872,15 @@
         underground: [],
         radio: [],
       };
-      toast("Catalogs are slow — filling rows in the background.");
+    }
+    if (!homeHasTracks(state.home)) {
+      const direct = await directHome();
+      if (direct) state.home = mergeHome(state.home, direct);
     }
     if (!state.home.shelves || !state.home.shelves.length) {
       state.home.shelves = FALLBACK_SHELVES.map((s) => ({ ...s, tracks: [] }));
     }
+    if (!homeHasTracks(state.home)) toast("Direct music APIs are unavailable right now.");
     homeFetchedAt = Date.now();
     loadForYou();
     checkFollowReleases();
@@ -4753,8 +4910,12 @@
         const data = await api(`/api/shelf?id=${encodeURIComponent(s.id || "")}&q=${encodeURIComponent(q)}&gl=US`, 16000);
         s.tracks = data.tracks || [];
         if (!s.title && data.title) s.title = data.title;
-        paintHomeSoon();
       } catch {}
+      if (!listHasTracks(s.tracks)) {
+        const direct = await directSearch(q);
+        if (direct) s.tracks = [].concat(direct.youtube || [], direct.apple || [], direct.audius || []).slice(0, 18);
+      }
+      if (listHasTracks(s.tracks)) paintHomeSoon();
     }));
     const localEmpty = !(h.youtubeLocal && h.youtubeLocal.length) && !(h.youtubeIndia && h.youtubeIndia.length);
     if (localEmpty) {
@@ -4836,8 +4997,9 @@
       state.radio = data.tracks || [];
     } catch {
       state.radio = [];
-      toast("Radio directory unavailable");
     }
+    if (!listHasTracks(state.radio)) state.radio = await directRadio(q);
+    if (!listHasTracks(state.radio)) toast("Radio directory unavailable");
     if (state.view === "radio") render();
   }
 
@@ -5512,7 +5674,9 @@
     state.queue = state.recents.slice(0, 24);
     state.index = 0;
   }
-  if (!state.prefs.github) {
+  // Music never needs GitHub. Keep the repository link only for the native
+  // Android updater, where the user explicitly asks to check for an APK.
+  if (!state.prefs.github && isMuchiApp()) {
     state.prefs.github = "https://github.com/Kaibshshdheueejw/Muchi-music-New";
     savePrefs();
   }
@@ -5538,7 +5702,7 @@
   renderPlaylistsNav();
   try { history.replaceState(navSnap(), ""); } catch {}
   loadHome();
-  checkUpdates(true);
+  if (isMuchiApp()) checkUpdates(true);
   setInterval(() => {
     if (!document.hidden && Date.now() - homeFetchedAt > 86400000) loadHome(true);
   }, 3600000);

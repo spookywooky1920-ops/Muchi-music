@@ -1696,6 +1696,7 @@ img { max-width: 100%; display: block; }
 }
 .badge.yt { color: var(--yt); }
 .badge.au { color: var(--au); }
+.badge.apple { color: #ff9ccf; }
 .badge.rd { color: var(--rd); }
 
 .moods {
