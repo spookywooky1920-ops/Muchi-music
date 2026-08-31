@@ -1,0 +1,29 @@
+{
+  "name": "muchi",
+  "version": "1.2.1",
+  "private": true,
+  "description": "Muchi — YouTube Music + Spotify-style player. Official YouTube playback, Audius independent artists, live radio.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "mobile:sync": "cap sync",
+    "mobile:sync:android": "cap sync android",
+    "mobile:sync:ios": "cap sync ios",
+    "mobile:add": "cap add android && cap add ios"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/local-notifications": "^8.0.0",
+    "@capacitor/share": "^8.0.0",
+    "@capacitor/splash-screen": "^8.0.0",
+    "@capacitor/status-bar": "^8.0.0",
+    "capacitor-music-controls-plugin": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "typescript": "^7.0.2"
+  }
+}

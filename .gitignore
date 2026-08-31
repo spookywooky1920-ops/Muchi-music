@@ -1,0 +1,44 @@
+# --- Node ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# --- Local environment ---
+.env
+.env.*
+!.env.example
+
+# --- Android / Gradle build output ---
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/local.properties
+android/captures/
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# --- Signing keystores: never commit (see ANDROID.md -> Signing) ---
+*.keystore
+*.jks
+*.p12
+*.pkcs12
+
+# --- IDE / OS ---
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Server-side session persistence (contains OAuth tokens — server only, never committed)
+.muchi-sessions.json
+.muchi-sessions.json.tmp
